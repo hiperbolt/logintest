@@ -9,10 +9,15 @@ The GUI / Full version of this concept program. ( Well, concept for me at least,
 
 ## MySQL Side of things.
 Im using a local-hosted MariaDB installation on Arch Linux with a DB called logininfo, using the table "credentials" that holds the values:
+
 +----------+----------+------------+
+
 | username | password | created    |
+
 +----------+----------+------------+
+
 | Joe      | password | 2016-09-07 |
+
 +----------+----------+------------+
 
 I'll post a tutorial on the wiki on how to set this up.
