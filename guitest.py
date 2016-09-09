@@ -15,15 +15,16 @@ import random
 use_two_step_authentication = 'true' # Describes it self. True / False
 accountSid = "" # Twilio Account SID
 auth_token = "" # Twilio Authentication Token
-msgsender = "" # Twilio Phone Number
+twilio_number= "" # Twilio Assigned Number
 client = TwilioRestClient(accountSid, auth_token)
 __author__ = 'hiperbolt' # Gotta get some o' that credit xd
 cnx = mysql.connector.connect() # MySQL Connector Information
 cursor = cnx.cursor()
 server = smtplib.SMTP('smtp.gmail.com', 587) # Mail server, currently set to Gmail
 server.starttls()
-server.login() # Mail server credentials
+server.login('', '') # Mail server credentials
 EMAIL_REGEX = re.compile(r"[^@]+@[^@]+\.[^@]+") # In case you are curious, REGEX to make sure mail is valid, feel free to make a more comprehensive one
+mymail = "" # Mail adress in server.login
 ###
 
 def combine_funcs(*funcs):
@@ -46,6 +47,7 @@ class login():
         self.label2 = Label(self.frame2, text='Password:')
         self.button1 = Button(self.frame2, text='Login', command=lambda: self.loginconfirm())
         self.button2 = Button(self.frame2, text='Forgot password?', command=lambda: self.loginhelp())
+        self.button3 = Button(self.frame2, text='Go back', command=lambda: combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(), initialscreen()))
         self.frame1.pack()
         self.frame2.pack()
         self.label1.pack()
@@ -54,6 +56,7 @@ class login():
         self.entry2.pack()
         self.button1.pack()
         self.button2.pack()
+        self.button3.pack()
 
     def loginconfirm(self):
         global inputusername
@@ -68,12 +71,6 @@ class login():
             messagebox.showerror("Sign-In Error", "Wrong username/password combination!")
             self.frame1.pack_forget()
             self.frame2.pack_forget()
-            self.label1.pack_forget()
-            self.label2.pack_forget()
-            self.entry1.pack_forget()
-            self.entry2.pack_forget()
-            self.button1.pack_forget()
-            self.button2.pack_forget()
             login()
         else:
             query = ("SELECT twostepauth FROM credentials WHERE username= %s")
@@ -91,12 +88,6 @@ class login():
                             messagebox.showerror("Error", "Two-Step Authentication has failed!")
                             self.frame1.pack_forget()
                             self.frame2.pack_forget()
-                            self.label1.pack_forget()
-                            self.label2.pack_forget()
-                            self.entry1.pack_forget()
-                            self.entry2.pack_forget()
-                            self.button1.pack_forget()
-                            self.button2.pack_forget()
                             login()
                     query = "SELECT phonenumber FROM credentials WHERE username= %s"
                     cursor.execute(query, (inputusername,))
@@ -104,16 +95,16 @@ class login():
                         receiver = phonenumber
 
                     msg = "Here is your loginsystem acess code: %s" % str(randomnumber)
-                    message = client.messages.create(to=receiver, from_=msgsender, body=msg)
-                    self.label1.pack_forget()
-                    self.label2.pack_forget()
-                    self.entry1.pack_forget()
-                    self.entry2.pack_forget()
-                    self.button1.pack_forget()
-                    self.button2.pack_forget()
+                    message = client.messages.create(to=receiver, from_=twilio_number, body=msg)
+                    self.frame1.pack_forget()
+                    self.frame2.pack_forget()
+                    self.frame1 = Frame(root)
+                    self.frame2 = Frame(root)
                     self.label1 = Label(self.frame1, text='Authentication Code:')
                     self.entry1 = Entry(self.frame2)
                     self.button1 = Button(self.frame2, text='Submit', command=lambda: checkrandomnumber())
+                    self.frame1.pack()
+                    self.frame2.pack()
                     self.label1.pack()
                     self.entry1.pack()
                     self.button1.pack()
@@ -122,30 +113,24 @@ class login():
     def loginhelp(self):
         self.frame1.pack_forget()
         self.frame2.pack_forget()
-        self.label1.pack_forget()
-        self.label2.pack_forget()
-        self.entry1.pack_forget()
-        self.entry2.pack_forget()
-        self.button1.pack_forget()
-        self.button2.pack_forget()
         self.frame1 = Frame(root)
         self.frame2 = Frame(root)
         self.label1 = Label(self.frame1, text='Enter username:')
         self.entry1 = Entry(self.frame1)
         self.button1 = Button(self.frame2, text='Recover password', command=lambda: self.loginhelpconfirm())
+        self.button2 = Button(self.frame2, text='Go back', command=lambda: combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(), login()))
         self.frame1.pack()
         self.frame2.pack()
         self.label1.pack()
         self.entry1.pack()
         self.button1.pack()
+        self.button2.pack()
 
     def loginhelpconfirm(self):
         self.recoverusername = self.entry1.get()
         query = ("SELECT Date, username FROM passwordrecover WHERE username= %s")
         cursor.execute(query, (self.recoverusername, ))
-        if len(cursor.fetchall()) == 0:
-            return
-        else:
+        if len(cursor.fetchall()) != 0:
             cursor.execute(query, (self.recoverusername,))
             for (Date, username) in cursor:
                 print(datetime.date.today())
@@ -156,9 +141,6 @@ class login():
                     messagebox.showerror("Error", "Password was recovered already in the last 24 hours!")
                     self.frame1.pack_forget()
                     self.frame2.pack_forget()
-                    self.label1.pack_forget()
-                    self.entry1.pack_forget()
-                    self.button1.pack_forget()
                     self.loginhelp()
                     return
 
@@ -169,15 +151,12 @@ class login():
             messagebox.showerror("Error", "Wrong username!")
             self.frame1.pack_forget()
             self.frame2.pack_forget()
-            self.label1.pack_forget()
-            self.entry1.pack_forget()
-            self.button1.pack_forget()
             self.loginhelp()
         else:
             cursor.execute(query, (self.recoverusername,))
             for (email, password) in cursor:
-                me = "noreply.loginsystem@gmail.com"
-                you = "tomasimoes03@gmail.com"
+                me = mymail
+                you = email
                 msg = MIMEMultipart('alternative')
                 msg['Subject'] = "Link"
                 msg['From'] = me
@@ -214,19 +193,11 @@ class login():
                     messagebox.showerror("Error!", "An error occurred sending this email, that's all we know.")
                     self.frame1.pack_forget()
                     self.frame2.pack_forget()
-                    self.label1.pack_forget()
-                    self.entry1.pack_forget()
-                    self.button1.pack_forget()
                     self.loginhelp()
 
     def loginsection(self):
         self.frame1.pack_forget()
         self.frame2.pack_forget()
-        self.label1.pack_forget()
-        self.label2.pack_forget()
-        self.entry1.pack_forget()
-        self.entry2.pack_forget()
-        self.button1.pack_forget()
         self.frame1 = Frame(root)
         self.frame2 = Frame(root)
         self.label1 = Label(self.frame1, text='Hello ' + inputusername + '!')
@@ -245,14 +216,6 @@ class login():
     def changepassword(self):
         self.frame1.pack_forget()
         self.frame2.pack_forget()
-        self.label1.pack_forget()
-        self.label2.pack_forget()
-        self.entry1.pack_forget()
-        self.entry2.pack_forget()
-        self.button1.pack_forget()
-        self.button2.pack_forget()
-        self.button3.pack_forget()
-        self.button4.pack_forget()
         self.frame1 = Frame(root)
         self.frame2 = Frame(root)
         self.entry1 = Entry(self.frame1)
@@ -262,6 +225,9 @@ class login():
         self.label2 = Label(self.frame2, text='New Password:')
         self.label3 = Label(self.frame2, text='Re-Enter New Password:')
         self.button1 = Button(self.frame2, text='Change password', command=lambda: self.changepasswordconfirm())
+        self.button2 = Button(self.frame2, text='Go back',
+                              command=lambda: combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(),
+                                                            login.loginsection(self)))
         self.frame1.pack()
         self.frame2.pack()
         self.label1.pack()
@@ -271,6 +237,7 @@ class login():
         self.label3.pack()
         self.entry3.pack()
         self.button1.pack()
+        self.button2.pack()
 
     def changepasswordconfirm(self):
         query = ("SELECT * FROM credentials WHERE username= %s AND password= %s;")
@@ -302,24 +269,20 @@ class login():
     def delete(self):
         self.frame1.pack_forget()
         self.frame2.pack_forget()
-        self.label1.pack_forget()
-        self.label2.pack_forget()
-        self.entry1.pack_forget()
-        self.entry2.pack_forget()
-        self.button1.pack_forget()
-        self.button2.pack_forget()
-        self.button3.pack_forget()
-        self.button4.pack_forget()
         self.frame1 = Frame(root)
         self.frame2 = Frame(root)
         self.label1 = Label(self.frame1, text='Enter your password:')
         self.entry1 = Entry(self.frame2)
         self.button1 = Button(self.frame2, text='Delete!', command=lambda: login.deleteconfirm(self))
+        self.button2 = Button(self.frame2, text='Go back',
+                              command=lambda: combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(),
+                                                            login.loginsection(self)))
         self.frame1.pack()
         self.frame2.pack()
         self.label1.pack()
         self.entry1.pack()
         self.button1.pack()
+        self.button2.pack()
 
     def deleteconfirm(self):
         query = ("SELECT * FROM credentials WHERE username= %s AND password= %s;")
@@ -344,7 +307,6 @@ class login():
         cursor.execute(query, (inputusername, ))
         for (twostepauth) in cursor:
             if '1' in twostepauth:
-                print('1')
                 global authstatus
                 authstatus = 1
                 self.CheckVar1.set(1)
@@ -356,22 +318,16 @@ class login():
                 return
             self.frame1.pack_forget()
             self.frame2.pack_forget()
-            self.label1.pack_forget()
-            self.label2.pack_forget()
-            self.entry1.pack_forget()
-            self.entry2.pack_forget()
-            self.button1.pack_forget()
-            self.button2.pack_forget()
-            self.button3.pack_forget()
-            self.button4.pack_forget()
             self.frame1 = Frame(root)
             self.frame2 = Frame(root)
             self.label1 = Label(self.frame1, text='Enable/Disable Two-Step Authentication')
             self.checkbox1 = Checkbutton(self.frame2, variable=self.CheckVar1)
+            self.button1 = Button(self.frame2, text='Go back', command=lambda: combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(), login.loginsection(self)))
             self.frame1.pack()
             self.frame2.pack()
             self.label1.pack()
             self.checkbox1.pack()
+            self.button1.pack()
             def callback(*args):
                 query = ("UPDATE credentials SET twostepauth= %s WHERE username= %s")
                 if not self.CheckVar1.get():
@@ -395,6 +351,7 @@ class register():
         self.label4 = Label(self.frame2, text='E-Mail:')
         self.label5 = Label(self.frame2, text='Phone Number:')
         self.button1 = Button(self.frame2, text='Register', command=lambda: self.registerconfirm())
+        self.button2 = Button(self.frame2, text='Go back', command=lambda: combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(), initialscreen()))
         self.frame1.pack()
         self.frame2.pack()
         self.label1.pack()
@@ -408,6 +365,7 @@ class register():
         self.label5.pack()
         self.entry5.pack()
         self.button1.pack()
+        self.button2.pack()
 
     def registerconfirm(self):
         query = ("SELECT * FROM credentials "
@@ -422,17 +380,6 @@ class register():
             messagebox.showerror("Invalid Email", "The email you entered is invalid!")
             self.frame1.pack_forget()
             self.frame2.pack_forget()
-            self.label1.pack_forget()
-            self.label2.pack_forget()
-            self.entry1.pack_forget()
-            self.entry2.pack_forget()
-            self.label3.pack_forget()
-            self.entry3.pack_forget()
-            self.label4.pack_forget()
-            self.entry4.pack_forget()
-            self.label5.pack_forget()
-            self.entry5.pack_forget()
-            self.button1.pack_forget()
             register()
         else:
             cursor.execute(query, (desiredusername, email, phone_number,))
@@ -456,47 +403,23 @@ class register():
                         desiredusername, desiredpassword, str(datetime.date.today()), email, phone_number))
                         cnx.commit()
                         messagebox.showinfo("Sucess!", "Account Registered!")
-                        root.quit()
-                        cursor.close()
-                        cnx.close()
+                        combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(), initialscreen())
                     else:
                         cursor.execute(add_credential, (
                             desiredusername, desiredpassword, str(datetime.date.today()), email, phone_number))
                         cnx.commit()
                         messagebox.showinfo("Sucess!", "Account Registered!")
                         messagebox.showwarning("Warning","Variable misconfigured in source file - Variable: use_two_step_authentication")
-                        root.quit()
-                        cursor.close()
-                        cnx.close()
+                        combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(), initialscreen())
                 else:
                     messagebox.showerror("Password don't match!", "The password do not match!")
                     self.frame1.pack_forget()
                     self.frame2.pack_forget()
-                    self.label1.pack_forget()
-                    self.label2.pack_forget()
-                    self.entry1.pack_forget()
-                    self.entry2.pack_forget()
-                    self.label3.pack_forget()
-                    self.entry3.pack_forget()
-                    self.label4.pack_forget()
-                    self.entry4.pack_forget()
-                    self.entry5.pack_forget()
-                    self.button1.pack_forget()
                     register()
             else:
                 messagebox.showerror("Error", "This username/email/phone number is taken!")
                 self.frame1.pack_forget()
                 self.frame2.pack_forget()
-                self.label1.pack_forget()
-                self.label2.pack_forget()
-                self.entry1.pack_forget()
-                self.entry2.pack_forget()
-                self.label3.pack_forget()
-                self.entry3.pack_forget()
-                self.label4.pack_forget()
-                self.entry4.pack_forget()
-                self.entry5.pack_forget()
-                self.button1.pack_forget()
                 register()
 
 
@@ -507,9 +430,9 @@ def initialscreen():
     frame2 = Frame(root)
     label1 = Label(frame1, text='Welcome to the login program!', font=5)
     button1 = Button(frame2, text='Login',
-                     command=lambda: combine_funcs(button2.pack_forget(), button1.pack_forget(), login()))
+                     command=lambda: combine_funcs(frame1.pack_forget(), frame2.pack_forget(), login()))
     button2 = Button(frame2, text='Register',
-                     command=lambda: combine_funcs(button2.pack_forget(), button1.pack_forget(), register()))
+                     command=lambda: combine_funcs(frame1.pack_forget(), frame2.pack_forget(), register()))
     frame1.pack()
     frame2.pack()
     label1.pack()
