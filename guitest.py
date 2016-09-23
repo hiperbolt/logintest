@@ -10,21 +10,32 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from twilio.rest import TwilioRestClient
 import random
+import bcrypt
+from passlib.hash import pbkdf2_sha256
+from sys import platform
+
+if platform == "darwin":
+    messagebox.showwarning("This program was not made to run in Mac OS / Darwin. We are not responsible for any eventual errors or malfunction.")
+elif platform == "win32":
+    messagebox.showerror("This program does NOT support Windows / win32 platforms. Exiting.")
+    sys.exit(0)
 
 ### Variables - Change them to fit your needs:
-use_two_step_authentication = 'true' # Describes it self. True / False
-accountSid = "" # Twilio Account SID
-auth_token = "" # Twilio Authentication Token
-twilio_number= "" # Twilio Assigned Number
+use_two_step_authentication = 'false'  # Describes it self. True / False
+accountSid = ""  # Twilio Account SID
+auth_token = ""  # Twilio Authentication Token
 client = TwilioRestClient(accountSid, auth_token)
-__author__ = 'hiperbolt' # Gotta get some o' that credit xd
-cnx = mysql.connector.connect() # MySQL Connector Information
+__author__ = 'hiperbolt'  # Gotta get some o' that credit xd
+cnx = mysql.connector.connect(user='', password='', host='',
+                              database='logininfo')  # MySQL Connector Information
 cursor = cnx.cursor()
-server = smtplib.SMTP('smtp.gmail.com', 587) # Mail server, currently set to Gmail
+server = smtplib.SMTP('smtp.gmail.com', 587)  # Mail server, currently set to Gmail
 server.starttls()
-server.login('', '') # Mail server credentials
-EMAIL_REGEX = re.compile(r"[^@]+@[^@]+\.[^@]+") # In case you are curious, REGEX to make sure mail is valid, feel free to make a more comprehensive one
-mymail = "" # Mail adress in server.login
+server.login('', '')  # Mail server credentials
+EMAIL_REGEX = re.compile(
+    r"[^@]+@[^@]+\.[^@]+")  # In case you are curious, REGEX to make sure mail is valid, feel free to make a more comprehensive one
+
+
 ###
 
 def combine_funcs(*funcs):
@@ -34,8 +45,10 @@ def combine_funcs(*funcs):
 
     return combined_func
 
+
 def to_integer(dt_time):
-    return 10000*dt_time.year + 100*dt_time.month + dt_time.day
+    return 10000 * dt_time.year + 100 * dt_time.month + dt_time.day
+
 
 class login():
     def __init__(self):
@@ -47,7 +60,9 @@ class login():
         self.label2 = Label(self.frame2, text='Password:')
         self.button1 = Button(self.frame2, text='Login', command=lambda: self.loginconfirm())
         self.button2 = Button(self.frame2, text='Forgot password?', command=lambda: self.loginhelp())
-        self.button3 = Button(self.frame2, text='Go back', command=lambda: combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(), initialscreen()))
+        self.button3 = Button(self.frame2, text='Go back',
+                              command=lambda: combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(),
+                                                            initialscreen()))
         self.frame1.pack()
         self.frame2.pack()
         self.label1.pack()
@@ -63,16 +78,26 @@ class login():
         inputusername = self.entry1.get()
         inputpassword = self.entry2.get()
         query = ("SELECT * FROM credentials "
-                 "WHERE username= %s AND password= %s")
+                 "WHERE username= %s")
 
-        cursor.execute(query, (inputusername, inputpassword))
+        cursor.execute(query, (inputusername, ))
 
         if len(cursor.fetchall()) == 0:
-            messagebox.showerror("Sign-In Error", "Wrong username/password combination!")
+            messagebox.showerror("Sign-In Error", "Wrong username!")
             self.frame1.pack_forget()
             self.frame2.pack_forget()
             login()
         else:
+            query = ("SELECT iterations, salt, hash FROM credentials WHERE username=%s")
+            cursor.execute(query, (inputusername, ))
+            for (iterations, salt, hash) in cursor:
+                byted_salt = str.encode(salt)
+                hash2 = pbkdf2_sha256.encrypt(inputpassword, rounds=int(iterations), salt=byted_salt)
+                if hash2 == hash:
+                    print('right password')
+                else:
+                    print('wrong password')
+
             query = ("SELECT twostepauth FROM credentials WHERE username= %s")
             cursor.execute(query, (inputusername,))
             for (twostepauth) in cursor:
@@ -80,6 +105,7 @@ class login():
                     login.loginsection(self)
                 if '1' in twostepauth:
                     randomnumber = random.randint(0, 99999)
+
                     def checkrandomnumber():
                         inputrandomnumber = self.entry1.get()
                         if int(inputrandomnumber) == int(randomnumber):
@@ -89,13 +115,14 @@ class login():
                             self.frame1.pack_forget()
                             self.frame2.pack_forget()
                             login()
+
                     query = "SELECT phonenumber FROM credentials WHERE username= %s"
                     cursor.execute(query, (inputusername,))
                     for (phonenumber) in cursor:
                         receiver = phonenumber
 
                     msg = "Here is your loginsystem acess code: %s" % str(randomnumber)
-                    message = client.messages.create(to=receiver, from_=twilio_number, body=msg)
+                    message = client.messages.create(to=receiver, from_="+16174090950", body=msg)
                     self.frame1.pack_forget()
                     self.frame2.pack_forget()
                     self.frame1 = Frame(root)
@@ -110,6 +137,7 @@ class login():
                     self.button1.pack()
                 else:
                     login.loginsection(self)
+
     def loginhelp(self):
         self.frame1.pack_forget()
         self.frame2.pack_forget()
@@ -118,7 +146,9 @@ class login():
         self.label1 = Label(self.frame1, text='Enter username:')
         self.entry1 = Entry(self.frame1)
         self.button1 = Button(self.frame2, text='Recover password', command=lambda: self.loginhelpconfirm())
-        self.button2 = Button(self.frame2, text='Go back', command=lambda: combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(), login()))
+        self.button2 = Button(self.frame2, text='Go back',
+                              command=lambda: combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(),
+                                                            login()))
         self.frame1.pack()
         self.frame2.pack()
         self.label1.pack()
@@ -129,7 +159,7 @@ class login():
     def loginhelpconfirm(self):
         self.recoverusername = self.entry1.get()
         query = ("SELECT Date, username FROM passwordrecover WHERE username= %s")
-        cursor.execute(query, (self.recoverusername, ))
+        cursor.execute(query, (self.recoverusername,))
         if len(cursor.fetchall()) != 0:
             cursor.execute(query, (self.recoverusername,))
             for (Date, username) in cursor:
@@ -146,7 +176,7 @@ class login():
 
         query = ("SELECT email, password FROM credentials WHERE username= %s")
 
-        cursor.execute(query, (self.recoverusername, ))
+        cursor.execute(query, (self.recoverusername,))
         if len(cursor.fetchall()) == 0:
             messagebox.showerror("Error", "Wrong username!")
             self.frame1.pack_forget()
@@ -155,14 +185,14 @@ class login():
         else:
             cursor.execute(query, (self.recoverusername,))
             for (email, password) in cursor:
-                me = mymail
-                you = email
+                me = "noreply.loginsystem@gmail.com"
+                you = "tomasimoes03@gmail.com"
                 msg = MIMEMultipart('alternative')
-                msg['Subject'] = "Link"
+                msg['Subject'] = "Password Recover"
                 msg['From'] = me
                 msg['To'] = you
                 text = "Hello %s!\nHow are you?\nSomeone requested your password!\nHere it is: %s!\n \nHave a good one!" % (
-                email, password)
+                    email, password)
                 html = """\
                     <html>
                       <head></head>
@@ -304,7 +334,7 @@ class login():
     def twostepauth(self):
         query = ("SELECT twostepauth FROM credentials WHERE username= %s")
         self.CheckVar1 = IntVar(root)
-        cursor.execute(query, (inputusername, ))
+        cursor.execute(query, (inputusername,))
         for (twostepauth) in cursor:
             if '1' in twostepauth:
                 global authstatus
@@ -322,12 +352,15 @@ class login():
             self.frame2 = Frame(root)
             self.label1 = Label(self.frame1, text='Enable/Disable Two-Step Authentication')
             self.checkbox1 = Checkbutton(self.frame2, variable=self.CheckVar1)
-            self.button1 = Button(self.frame2, text='Go back', command=lambda: combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(), login.loginsection(self)))
+            self.button1 = Button(self.frame2, text='Go back',
+                                  command=lambda: combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(),
+                                                                login.loginsection(self)))
             self.frame1.pack()
             self.frame2.pack()
             self.label1.pack()
             self.checkbox1.pack()
             self.button1.pack()
+
             def callback(*args):
                 query = ("UPDATE credentials SET twostepauth= %s WHERE username= %s")
                 if not self.CheckVar1.get():
@@ -335,7 +368,10 @@ class login():
                 elif self.CheckVar1.get():
                     cursor.execute(query, ('1', inputusername,))
                 cnx.commit()
+
             self.CheckVar1.trace("w", callback)
+
+
 class register():
     def __init__(self):
         self.frame1 = Frame(root)
@@ -351,7 +387,9 @@ class register():
         self.label4 = Label(self.frame2, text='E-Mail:')
         self.label5 = Label(self.frame2, text='Phone Number:')
         self.button1 = Button(self.frame2, text='Register', command=lambda: self.registerconfirm())
-        self.button2 = Button(self.frame2, text='Go back', command=lambda: combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(), initialscreen()))
+        self.button2 = Button(self.frame2, text='Go back',
+                              command=lambda: combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(),
+                                                            initialscreen()))
         self.frame1.pack()
         self.frame2.pack()
         self.label1.pack()
@@ -386,30 +424,38 @@ class register():
             if len(cursor.fetchall()) == 0:
                 if desiredpassword2 == desiredpassword:
                     add_credential = ("INSERT INTO credentials "
-                                      "(username, password, created, email, phonenumber) "
-                                      "VALUES (%s, %s, %s, %s, %s)")
+                                      "(username, created, email, phonenumber, iterations, salt, hash) "
+                                      "VALUES (%s, %s, %s, %s, '200000', %s, %s)")
                     add_credential_auth = ("INSERT INTO credentials "
-                                           "(username, password, created, email, twostepauth, phonenumber) "
-                                           "VALUES (%s, %s, %s, %s, '0', %s)")
+                                           "(username, created, email, twostepauth, phonenumber, iterations, salt, hash) "
+                                           "VALUES (%s, %s, %s, '0', %s, '200000', %s, %s)")
                     if use_two_step_authentication == 'true':
-                        cursor.execute(add_credential_auth, (desiredusername, desiredpassword, str(datetime.date.today()), email, phone_number))
+                        salt = bcrypt.gensalt()
+                        hashedpassword = pbkdf2_sha256.encrypt(desiredpassword, rounds=200000, salt=salt)
+                        cursor.execute(add_credential_auth, (
+                            desiredusername, str(datetime.date.today()), email, phone_number, salt, hashedpassword))
                         cnx.commit()
                         messagebox.showinfo("Sucess!", "Account Registered!")
                         root.quit()
                         cursor.close()
                         cnx.close()
                     elif use_two_step_authentication == 'false':
+                        salt = bcrypt.gensalt()
+                        hashedpassword = pbkdf2_sha256.encrypt(desiredpassword, rounds=200000, salt=salt)
                         cursor.execute(add_credential, (
-                        desiredusername, desiredpassword, str(datetime.date.today()), email, phone_number))
+                            desiredusername, str(datetime.date.today()), email, phone_number, salt, hashedpassword))
                         cnx.commit()
                         messagebox.showinfo("Sucess!", "Account Registered!")
                         combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(), initialscreen())
                     else:
+                        salt = bcrypt.gensalt()
+                        hashedpassword = pbkdf2_sha256.encrypt(desiredpassword, rounds=200000, salt=salt)
                         cursor.execute(add_credential, (
-                            desiredusername, desiredpassword, str(datetime.date.today()), email, phone_number))
+                            desiredusername, str(datetime.date.today()), email, phone_number, salt, hashedpassword))
                         cnx.commit()
                         messagebox.showinfo("Sucess!", "Account Registered!")
-                        messagebox.showwarning("Warning","Variable misconfigured in source file - Variable: use_two_step_authentication")
+                        messagebox.showwarning("Warning",
+                                               "Variable misconfigured in source file - Variable: use_two_step_authentication")
                         combine_funcs(self.frame1.pack_forget(), self.frame2.pack_forget(), initialscreen())
                 else:
                     messagebox.showerror("Password don't match!", "The password do not match!")
