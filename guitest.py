@@ -26,12 +26,13 @@ accountSid = ""  # Twilio Account SID
 auth_token = ""  # Twilio Authentication Token
 client = TwilioRestClient(accountSid, auth_token)
 __author__ = 'hiperbolt'  # Gotta get some o' that credit xd
-cnx = mysql.connector.connect(user='', password='', host='',
+cnx = mysql.connector.connect(user='', password='', host='127.0.0.1',
                               database='logininfo')  # MySQL Connector Information
 cursor = cnx.cursor()
 server = smtplib.SMTP('smtp.gmail.com', 587)  # Mail server, currently set to Gmail
 server.starttls()
 server.login('', '')  # Mail server credentials
+link = "192.168.1.75/index.php" #Password Recovery Server Link
 EMAIL_REGEX = re.compile(
     r"[^@]+@[^@]+\.[^@]+")  # In case you are curious, REGEX to make sure mail is valid, feel free to make a more comprehensive one
 
@@ -97,6 +98,11 @@ class login():
                     print('right password')
                 else:
                     print('wrong password')
+                    messagebox.showerror("Sign-In Error", "Wrong password!")
+                    self.frame1.pack_forget()
+                    self.frame2.pack_forget()
+                    login()
+                    return
 
             query = ("SELECT twostepauth FROM credentials WHERE username= %s")
             cursor.execute(query, (inputusername,))
@@ -174,7 +180,7 @@ class login():
                     self.loginhelp()
                     return
 
-        query = ("SELECT email, password FROM credentials WHERE username= %s")
+        query = ("SELECT email FROM credentials WHERE username= %s")
 
         cursor.execute(query, (self.recoverusername,))
         if len(cursor.fetchall()) == 0:
@@ -183,30 +189,36 @@ class login():
             self.frame2.pack_forget()
             self.loginhelp()
         else:
+            query = ("SELECT email FROM credentials WHERE username= %s")
             cursor.execute(query, (self.recoverusername,))
-            for (email, password) in cursor:
-                me = "noreply.loginsystem@gmail.com"
-                you = "tomasimoes03@gmail.com"
+            for (email) in cursor:
+                randomnumber = random.randint(0, 9999999)
+                query = "INSERT INTO passwordrecover (Date, username, recoverycode) VALUES (%s, %s, %s)"
+                cursor.execute(query, (datetime.date.today(), self.recoverusername, randomnumber))
+                cnx.commit()
+                me = ""
+                you = ""
                 msg = MIMEMultipart('alternative')
                 msg['Subject'] = "Password Recover"
                 msg['From'] = me
                 msg['To'] = you
-                text = "Hello %s!\nHow are you?\nSomeone requested your password!\nHere it is: %s!\n \nHave a good one!" % (
-                    email, password)
+                text = "Hello %s!\nHow are you?\nSomeone requested your password to be recovered!\nHere is the recovery code you need: %s!\nGo to: %s\n \nHave a good one!" % (
+                    email, randomnumber, link)
                 html = """\
                     <html>
                       <head></head>
                       <body>
                         <p>Hello %s!<br>
                            How are you?<br>
-                           Someone requested your password!<br>
-                           Here it is: %s<br>
+                           Someone requested your password to be recovered!<br>
+                           Here is the recovery code you need: %s<br>
+                           Go to: %s<br>
 
                            Have a good one!<br>
                         </p>
                       </body>
                     </html>
-                    """ % (email, password)
+                    """ % (email, randomnumber, link)
 
                 part1 = MIMEText(text, 'plain')
                 part2 = MIMEText(html, 'html')
@@ -215,10 +227,7 @@ class login():
                 try:
                     server.sendmail(me, you, msg.as_string())
                     server.quit()
-                    messagebox.showinfo("Sucess", "An email was sent with your password")
-                    query = ("INSERT INTO passwordrecover (Date, username) VALUES (%s, %s)")
-                    cursor.execute(query, (datetime.date.today(), self.recoverusername,))
-                    cnx.commit()
+                    messagebox.showinfo("Sucess", "An email was sent with instructions on how to recover your password")
                 except smtplib.SMTPException:
                     messagebox.showerror("Error!", "An error occurred sending this email, that's all we know.")
                     self.frame1.pack_forget()
